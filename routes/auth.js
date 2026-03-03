@@ -178,10 +178,12 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(200).json({ success: true, message: 'If that email exists, a reset link has been sent.' });
     }
     const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetOTP = Math.floor(100000 + Math.random() * 900000).toString();
     user.passwordResetToken = resetToken;
+    user.passwordResetOTP = resetOTP;
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save({ validateBeforeSave: false });
-    await sendPasswordResetEmail({ to: user.email, firstName: user.firstName, resetToken });
+    await sendPasswordResetEmail({ to: user.email, firstName: user.firstName, resetToken, resetOTP });
     return res.status(200).json({ success: true, message: 'Password reset email sent!' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error.' });
@@ -209,6 +211,36 @@ router.post('/reset-password/:token', async (req, res) => {
     sendTokenResponse(user, 200, res, 'Password reset successfully!');
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// ── RESET PASSWORD VIA OTP ────────────────────────────────────────────────────
+router.post('/reset-password-otp', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Please provide email, OTP, and new password.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+    }
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+      passwordResetOTP: otp,
+      passwordResetExpires: { $gt: new Date() },
+    });
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset code. Please request a new one.' });
+    }
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
+    user.passwordResetToken = null;
+    user.passwordResetOTP = null;
+    user.passwordResetExpires = null;
+    await user.save({ validateBeforeSave: false });
+    sendTokenResponse(user, 200, res, 'Password reset successfully!');
+  } catch (error) {
+    console.error('Reset password OTP error:', error);
+    return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
   }
 });
 

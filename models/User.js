@@ -22,6 +22,7 @@ const userSchema = new mongoose.Schema(
     emailVerificationToken: { type: String, default: null },
     emailVerificationExpires: { type: Date, default: null },
     passwordResetToken: { type: String, default: null },
+    passwordResetOTP: { type: String, default: null },
     passwordResetExpires: { type: Date, default: null },
 
     // PROFILE
