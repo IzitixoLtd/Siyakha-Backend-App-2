@@ -12,7 +12,7 @@ const protect = async (req, res, next) => {
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select(
-      '-passwordHash -emailVerificationToken -emailVerificationExpires -passwordResetToken -passwordResetExpires'
+      '-passwordHash -emailVerificationToken -emailVerificationExpires -passwordResetToken -passwordResetOTP -passwordResetExpires -refreshToken -refreshTokenExpires'
     );
     if (!user) {
       return res.status(401).json({ success: false, message: 'User no longer exists.' });

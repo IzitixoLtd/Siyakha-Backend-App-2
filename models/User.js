@@ -24,6 +24,8 @@ const userSchema = new mongoose.Schema(
     passwordResetToken: { type: String, default: null },
     passwordResetOTP: { type: String, default: null },
     passwordResetExpires: { type: Date, default: null },
+    refreshToken: { type: String, default: null },
+    refreshTokenExpires: { type: Date, default: null },
 
     // PROFILE
     firstName: { type: String, required: [true, 'First name is required'], trim: true },
@@ -61,6 +63,22 @@ const userSchema = new mongoose.Schema(
       department: { type: String, default: null },
     },
 
+    // ADMIN PROFILE
+    adminProfile: {
+      permissions: [{
+        type: String,
+        enum: [
+          'manage_teachers',
+          'manage_students',
+          'manage_resources',
+          'view_analytics',
+          'post_announcements',
+          'manage_institution',
+        ],
+      }],
+      departmentSubjects: { type: [String], default: [] },
+    },
+
     // PREFERENCES
     preferences: {
       theme: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
@@ -86,6 +104,8 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ phoneNumber: 1 }, { sparse: true });
 userSchema.index({ institutionId: 1, role: 1 });
+userSchema.index({ institutionId: 1, 'studentProfile.grade': 1 });
+userSchema.index({ 'teacherProfile.assignments.subjectKey': 1 });
 
 // Auto-compute displayName before saving
 userSchema.pre('save', function (next) {
@@ -102,7 +122,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 
 // Return safe user object (no sensitive fields)
 userSchema.methods.toSafeObject = function () {
-  return {
+  const obj = {
     id: this._id,
     email: this.email,
     firstName: this.firstName,
@@ -112,12 +132,14 @@ userSchema.methods.toSafeObject = function () {
     role: this.role,
     isEmailVerified: this.isEmailVerified,
     institutionId: this.institutionId,
-    studentProfile: this.role === 'student' ? this.studentProfile : undefined,
-    teacherProfile: this.role === 'teacher' ? this.teacherProfile : undefined,
     preferences: this.preferences,
     createdAt: this.createdAt,
     lastLoginAt: this.lastLoginAt,
   };
+  if (this.role === 'student') obj.studentProfile = this.studentProfile;
+  if (this.role === 'teacher') obj.teacherProfile = this.teacherProfile;
+  if (['admin', 'hod', 'principal'].includes(this.role)) obj.adminProfile = this.adminProfile;
+  return obj;
 };
 
 module.exports = mongoose.model('User', userSchema);

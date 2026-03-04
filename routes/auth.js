@@ -7,18 +7,32 @@ const User = require('../models/User');
 const { protect } = require('../middleware/authMiddleware');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
 
-const generateToken = (userId) => {
+// Short-lived access token (15 minutes)
+const generateAccessToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    expiresIn: '15m',
   });
 };
 
-const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
-  const token = generateToken(user._id);
+// Long-lived refresh token (random string, stored in DB)
+const generateRefreshToken = () => {
+  return crypto.randomBytes(40).toString('hex');
+};
+
+const sendTokenResponse = async (user, statusCode, res, message = 'Success') => {
+  const accessToken = generateAccessToken(user._id);
+  const refreshToken = generateRefreshToken();
+
+  // Store refresh token in DB with 7-day expiry
+  user.refreshToken = refreshToken;
+  user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await user.save({ validateBeforeSave: false });
+
   res.status(statusCode).json({
     success: true,
     message,
-    token,
+    token: accessToken,
+    refreshToken,
     user: user.toSafeObject(),
   });
 };
@@ -89,7 +103,7 @@ router.post('/signup', async (req, res) => {
   } catch (error) {
     console.error('Signup error:', error);
     if (error.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Email already exists.' });
+      return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
     }
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map((e) => e.message);
@@ -111,18 +125,55 @@ router.post('/signin', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
     if (!user.isActive) {
-      return res.status(401).json({ success: false, message: 'Account has been deactivated.' });
+      return res.status(403).json({ success: false, message: 'Your account has been deactivated. Please contact support.' });
     }
     const isCorrect = await user.comparePassword(password);
     if (!isCorrect) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
     user.lastLoginAt = new Date();
-    await user.save({ validateBeforeSave: false });
-    sendTokenResponse(user, 200, res, 'Signed in successfully!');
+    await sendTokenResponse(user, 200, res, 'Signed in successfully!');
   } catch (error) {
     console.error('Signin error:', error);
     return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+  }
+});
+
+// ── REFRESH TOKEN ─────────────────────────────────────────────────────────────
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, message: 'Refresh token is required.' });
+    }
+    const user = await User.findOne({
+      refreshToken,
+      refreshTokenExpires: { $gt: new Date() },
+    });
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token. Please sign in again.' });
+    }
+    if (!user.isActive) {
+      return res.status(403).json({ success: false, message: 'Your account has been deactivated.' });
+    }
+
+    // Rotate: issue new access token + new refresh token
+    const newAccessToken = generateAccessToken(user._id);
+    const newRefreshToken = generateRefreshToken();
+    user.refreshToken = newRefreshToken;
+    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Token refreshed.',
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: user.toSafeObject(),
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    return res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
@@ -140,7 +191,7 @@ router.get('/verify-email/:token', async (req, res) => {
     user.emailVerificationToken = null;
     user.emailVerificationExpires = null;
     await user.save({ validateBeforeSave: false });
-    return res.status(200).json({ success: true, message: '🎉 Email verified! You can now sign in.' });
+    return res.status(200).json({ success: true, message: 'Email verified! You can now sign in.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -206,9 +257,10 @@ router.post('/reset-password/:token', async (req, res) => {
     }
     user.passwordHash = await bcrypt.hash(password, 12);
     user.passwordResetToken = null;
+    user.passwordResetOTP = null;
     user.passwordResetExpires = null;
     await user.save({ validateBeforeSave: false });
-    sendTokenResponse(user, 200, res, 'Password reset successfully!');
+    await sendTokenResponse(user, 200, res, 'Password reset successfully!');
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -237,7 +289,7 @@ router.post('/reset-password-otp', async (req, res) => {
     user.passwordResetOTP = null;
     user.passwordResetExpires = null;
     await user.save({ validateBeforeSave: false });
-    sendTokenResponse(user, 200, res, 'Password reset successfully!');
+    await sendTokenResponse(user, 200, res, 'Password reset successfully!');
   } catch (error) {
     console.error('Reset password OTP error:', error);
     return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
@@ -245,8 +297,16 @@ router.post('/reset-password-otp', async (req, res) => {
 });
 
 // ── SIGNOUT ───────────────────────────────────────────────────────────────────
-router.post('/signout', protect, (req, res) => {
-  return res.status(200).json({ success: true, message: 'Signed out successfully.' });
+router.post('/signout', protect, async (req, res) => {
+  try {
+    // Invalidate refresh token
+    req.user.refreshToken = null;
+    req.user.refreshTokenExpires = null;
+    await req.user.save({ validateBeforeSave: false });
+    return res.status(200).json({ success: true, message: 'Signed out successfully.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
 });
 
 module.exports = router;
