@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
+const institutionRoutes = require('./routes/institutions');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -48,6 +49,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/institutions', institutionRoutes);
 
 // 404
 app.use((req, res) => {
@@ -71,6 +73,8 @@ connectDB().then(() => {
     console.log('  POST  /api/auth/resend-verification');
     console.log('  GET   /api/auth/me');
     console.log('  POST  /api/auth/forgot-password');
-    console.log('  POST  /api/auth/reset-password/:token\n');
+    console.log('  POST  /api/auth/reset-password/:token');
+    console.log('  GET   /api/institutions');
+    console.log('  POST  /api/institutions/validate-code\n');
   });
 });

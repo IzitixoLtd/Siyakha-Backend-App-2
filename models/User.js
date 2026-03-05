@@ -132,12 +132,30 @@ userSchema.methods.toSafeObject = function () {
     role: this.role,
     isEmailVerified: this.isEmailVerified,
     institutionId: this.institutionId,
+    joinedVia: this.joinedVia,
     preferences: this.preferences,
     createdAt: this.createdAt,
     lastLoginAt: this.lastLoginAt,
   };
   if (this.role === 'student') obj.studentProfile = this.studentProfile;
-  if (this.role === 'teacher') obj.teacherProfile = this.teacherProfile;
+  if (this.role === 'teacher') {
+    obj.teacherProfile = this.teacherProfile;
+    // Compute flat classes array for the frontend from assignments
+    const classes = [];
+    if (this.teacherProfile && Array.isArray(this.teacherProfile.assignments)) {
+      for (const assignment of this.teacherProfile.assignments) {
+        for (const grade of assignment.grades) {
+          classes.push({
+            id: `${assignment.subjectKey}_${grade}`,
+            subject: assignment.subjectLabel,
+            grade: `Grade ${grade}`,
+            displayName: `Grade ${grade} ${assignment.subjectLabel}`,
+          });
+        }
+      }
+    }
+    obj.classes = classes;
+  }
   if (['admin', 'hod', 'principal'].includes(this.role)) obj.adminProfile = this.adminProfile;
   return obj;
 };

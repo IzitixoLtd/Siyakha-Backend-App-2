@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
+const Institution = require('../models/Institution');
 const { protect } = require('../middleware/authMiddleware');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
 
@@ -40,7 +41,11 @@ const sendTokenResponse = async (user, statusCode, res, message = 'Success') => 
 // ── SIGNUP ────────────────────────────────────────────────────────────────────
 router.post('/signup', async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role, grade, subjects, school, province, department } = req.body;
+    const {
+      firstName, lastName, email, password, role,
+      grade, subjects, school, province, department,
+      institutionCode, assignments,
+    } = req.body;
 
     if (!firstName || !lastName || !email || !password || !role) {
       return res.status(400).json({ success: false, message: 'Please provide firstName, lastName, email, password, and role.' });
@@ -51,8 +56,28 @@ router.post('/signup', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
     }
+
+    // Teachers MUST have an institution code
+    if (role === 'teacher' && !institutionCode) {
+      return res.status(400).json({ success: false, message: 'Teachers must sign up with an institution code.' });
+    }
+    if (role === 'teacher' && (!assignments || !Array.isArray(assignments) || assignments.length === 0)) {
+      return res.status(400).json({ success: false, message: 'Teachers must select at least one subject and grade.' });
+    }
     if (role === 'student' && !grade) {
       return res.status(400).json({ success: false, message: 'Students must provide a grade.' });
+    }
+
+    // Validate institution code if provided
+    let institution = null;
+    if (institutionCode) {
+      institution = await Institution.findOne({
+        code: institutionCode.toUpperCase().trim(),
+        isActive: true,
+      });
+      if (!institution) {
+        return res.status(400).json({ success: false, message: 'Invalid institution code. Please check and try again.' });
+      }
     }
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -73,18 +98,27 @@ router.post('/signup', async (req, res) => {
       isEmailVerified: false,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: verificationExpires,
-      joinedVia: 'independent',
+      joinedVia: institution ? 'institution_code' : 'independent',
+      institutionId: institution ? institution._id : null,
     };
 
     if (role === 'student') {
       userData.studentProfile = {
         grade: parseInt(grade, 10),
         subjects: subjects || [],
-        school: school || null,
-        province: province || null,
+        school: institution ? institution.name : (school || null),
+        province: institution ? institution.province : (province || null),
       };
     } else if (role === 'teacher') {
-      userData.teacherProfile = { department: department || null, employeeId: null, assignments: [] };
+      userData.teacherProfile = {
+        department: department || null,
+        employeeId: null,
+        assignments: assignments.map((a) => ({
+          subjectKey: a.subjectKey,
+          subjectLabel: a.subjectLabel,
+          grades: a.grades,
+        })),
+      };
     }
 
     const user = await User.create(userData);
@@ -97,7 +131,7 @@ router.post('/signup', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Account created! Please check your email to verify your account, then sign in.',
+      message: 'Account created successfully! You can now sign in.',
       user: user.toSafeObject(),
     });
   } catch (error) {
