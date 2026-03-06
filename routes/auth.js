@@ -255,6 +255,32 @@ router.get('/me', protect, (req, res) => {
   return res.status(200).json({ success: true, user: req.user.toSafeObject() });
 });
 
+// ── UPDATE PROFILE ────────────────────────────────────────────────────────────
+router.patch('/me', protect, async (req, res) => {
+  try {
+    const { firstName, lastName, phoneNumber } = req.body;
+    const user = req.user;
+
+    if (firstName !== undefined) {
+      if (!firstName.trim()) return res.status(400).json({ success: false, message: 'First name cannot be empty.' });
+      user.firstName = firstName.trim();
+    }
+    if (lastName !== undefined) {
+      if (!lastName.trim()) return res.status(400).json({ success: false, message: 'Last name cannot be empty.' });
+      user.lastName = lastName.trim();
+    }
+    if (phoneNumber !== undefined) {
+      user.phoneNumber = phoneNumber.trim() || null;
+    }
+
+    await user.save({ validateBeforeSave: false });
+    return res.status(200).json({ success: true, message: 'Profile updated successfully.', user: user.toSafeObject() });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    return res.status(500).json({ success: false, message: 'Server error. Please try again.' });
+  }
+});
+
 // ── FORGOT PASSWORD ───────────────────────────────────────────────────────────
 router.post('/forgot-password', async (req, res) => {
   try {

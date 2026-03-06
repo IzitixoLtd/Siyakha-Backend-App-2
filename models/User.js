@@ -130,6 +130,7 @@ userSchema.methods.toSafeObject = function () {
     displayName: this.displayName,
     avatarUrl: this.avatarUrl,
     role: this.role,
+    phoneNumber: this.phoneNumber,
     isEmailVerified: this.isEmailVerified,
     institutionId: this.institutionId,
     joinedVia: this.joinedVia,

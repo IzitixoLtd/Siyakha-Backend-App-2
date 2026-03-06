@@ -72,6 +72,7 @@ connectDB().then(() => {
     console.log('  GET   /api/auth/verify-email/:token');
     console.log('  POST  /api/auth/resend-verification');
     console.log('  GET   /api/auth/me');
+    console.log('  PATCH /api/auth/me');
     console.log('  POST  /api/auth/forgot-password');
     console.log('  POST  /api/auth/reset-password/:token');
     console.log('  GET   /api/institutions');
