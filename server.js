@@ -5,6 +5,8 @@ const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
 const institutionRoutes = require('./routes/institutions');
+const teacherRoutes = require('./routes/teachers');
+const announcementRoutes = require('./routes/announcements');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -50,6 +52,8 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/institutions', institutionRoutes);
+app.use('/api/teachers', teacherRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // 404
 app.use((req, res) => {
@@ -76,6 +80,12 @@ connectDB().then(() => {
     console.log('  POST  /api/auth/forgot-password');
     console.log('  POST  /api/auth/reset-password/:token');
     console.log('  GET   /api/institutions');
-    console.log('  POST  /api/institutions/validate-code\n');
+    console.log('  POST  /api/institutions/validate-code');
+    console.log('  GET   /api/teachers/class-students');
+    console.log('  GET   /api/teachers/class-summary');
+    console.log('  POST  /api/announcements');
+    console.log('  GET   /api/announcements/feed');
+    console.log('  GET   /api/announcements/my');
+    console.log('  DELETE /api/announcements/:id\n');
   });
 });
