@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const institutionRoutes = require('./routes/institutions');
 const teacherRoutes = require('./routes/teachers');
 const announcementRoutes = require('./routes/announcements');
+const quizRoutes = require('./routes/quiz');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -54,6 +55,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/quiz', quizRoutes);
 
 // 404
 app.use((req, res) => {
@@ -86,6 +88,14 @@ connectDB().then(() => {
     console.log('  POST  /api/announcements');
     console.log('  GET   /api/announcements/feed');
     console.log('  GET   /api/announcements/my');
-    console.log('  DELETE /api/announcements/:id\n');
+    console.log('  DELETE /api/announcements/:id');
+  console.log('  POST  /api/quiz/submit');
+  console.log('  GET   /api/quiz/my-results');
+  console.log('  GET   /api/quiz/result/:id');
+  console.log('  GET   /api/teachers/notifications');
+  console.log('  PATCH /api/teachers/notifications/:id/read');
+  console.log('  PATCH /api/teachers/notifications/read-all');
+  console.log('  GET   /api/teachers/student-performance/:studentId');
+  console.log('  GET   /api/teachers/quiz-analytics\n');
   });
 });
