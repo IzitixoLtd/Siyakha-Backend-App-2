@@ -271,6 +271,18 @@ router.get('/quiz-analytics', protect, restrictTo('teacher', 'admin', 'hod', 'pr
       return res.status(400).json({ success: false, message: 'You are not linked to an institution.' });
     }
 
+    // Verify the teacher actually teaches this subject + grade
+    const assignments = teacher.teacherProfile?.assignments || [];
+    const teachesSubject = assignments.some(
+      (a) => a.subjectKey === subjectKey && Array.isArray(a.grades) && a.grades.includes(gradeNum)
+    );
+    if (!teachesSubject) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not teach this subject and grade.',
+      });
+    }
+
     // Get all students in this class
     const students = await User.find({
       role: 'student',
@@ -290,7 +302,9 @@ router.get('/quiz-analytics', protect, restrictTo('teacher', 'admin', 'hod', 'pr
         grade: gradeNum,
         totalStudents: 0,
         studentsAttempted: 0,
+        totalAttempts: 0,
         analytics: null,
+        studentBreakdown: [],
       });
     }
 
@@ -305,13 +319,24 @@ router.get('/quiz-analytics', protect, restrictTo('teacher', 'admin', 'hod', 'pr
     const totalAttempts = results.length;
 
     if (totalAttempts === 0) {
+      const noAttemptBreakdown = students.map((s) => ({
+        studentId: s._id,
+        name: `${s.firstName} ${s.lastName}`,
+        displayName: s.displayName,
+        attempted: false,
+        latestScore: null,
+        latestQuizTitle: null,
+        lastAttemptAt: null,
+      }));
       return res.status(200).json({
         success: true,
         subjectKey,
         grade: gradeNum,
         totalStudents,
         studentsAttempted: 0,
+        totalAttempts: 0,
         analytics: null,
+        studentBreakdown: noAttemptBreakdown,
       });
     }
 
