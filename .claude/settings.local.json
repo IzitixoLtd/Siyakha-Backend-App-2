@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls /c/Users/user/OneDrive/Desktop/Siyakha-App-2/app/\\\\\\(tabs\\\\\\)/)"
+      "Bash(ls /c/Users/user/OneDrive/Desktop/Siyakha-App-2/app/\\\\\\(tabs\\\\\\)/)",
+      "Read(//c/Users/user/OneDrive/Desktop/Siyakha-App-2/app/**)",
+      "Read(//c/Users/user/OneDrive/Desktop/Siyakha-App-2/contexts/**)",
+      "Bash(ls \"/c/Users/user/OneDrive/Desktop/Siyakha-App-2/app/\\(tabs\\)\")",
+      "Bash(ls \"/c/Users/user/OneDrive/Desktop/Siyakha-App-2/app/\\(tabs\\)/quiz\")",
+      "Bash(ls \"/c/Users/user/OneDrive/Desktop/Siyakha-App-2/app/\\(tabs\\)/quiz/[mode]\")"
     ]
   }
 }
